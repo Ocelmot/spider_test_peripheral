@@ -25,20 +25,47 @@ impl State {
             element.set_id("data");
             element
         });
+
         root.append_child({
-            let mut element = UiElement::from_string("Increase");
-            element.set_kind(UiElementKind::Button);
-            element.set_selectable(true);
-            element.set_id("button");
-            element
+            let mut child = UiElement::new(UiElementKind::Columns);
+            child.append_child(UiElement::from_string("Increase:"));
+            child.append_child({
+                let mut element = UiElement::from_string("Increase");
+                element.set_kind(UiElementKind::Button);
+                element.set_selectable(true);
+                element.set_id("button");
+                element
+            });
+            child.append_child({
+                let mut element = UiElement::from_string("Increase Five");
+                element.set_kind(UiElementKind::Button);
+                element.set_selectable(true);
+                element.set_id("increase_5");
+                element
+            });
+            child
         });
+
+        
         root.append_child({
-            let mut element = UiElement::from_string("Decrease");
-            element.set_kind(UiElementKind::Button);
-            element.set_selectable(true);
-            element.set_id("button2");
-            element
+            let mut child = UiElement::new(UiElementKind::Columns);
+            child.append_child({
+                let mut element = UiElement::from_string("Decrease");
+                element.set_kind(UiElementKind::Button);
+                element.set_selectable(true);
+                element.set_id("decrease");
+                element
+            });
+            child.append_child({
+                let mut element = UiElement::from_string("Decrease Five");
+                element.set_kind(UiElementKind::Button);
+                element.set_selectable(true);
+                element.set_id("decrease_5");
+                element
+            });
+            child
         });
+
         root.append_child({
             let mut element = UiElement::from_string("Reset");
             element.set_kind(UiElementKind::Button);
@@ -46,6 +73,10 @@ impl State {
             element.set_id("button3");
             element
         });
+        
+        
+        
+        
         root.append_child({
             let mut element = UiElement::from_string("Output:");
             element.set_id("Output");
@@ -121,7 +152,7 @@ async fn msg_handler(client: &mut SpiderClient, state: &mut State, msg: Message)
     match msg {
         Message::Peripheral(_) => {}
         Message::Ui(msg) => ui_handler(client, state, msg).await,
-        Message::Dataset => {}
+        Message::Dataset(_) => {}
         Message::Event(_) => {}
     }
 }
@@ -129,16 +160,15 @@ async fn msg_handler(client: &mut SpiderClient, state: &mut State, msg: Message)
 async fn ui_handler(client: &mut SpiderClient, state: &mut State, msg: UiMessage) {
     match msg {
         UiMessage::Subscribe => {}
-        UiMessage::GetPages => {}
         UiMessage::Pages(_) => {}
         UiMessage::GetPage(_) => {}
         UiMessage::Page(_) => {}
         UiMessage::UpdateElementsFor(_, _) => {}
-        UiMessage::InputFor(_, _, _) => {}
+        UiMessage::InputFor(_, _, _, _) => {}
         UiMessage::SetPage(_) => {}
         UiMessage::ClearPage => {}
         UiMessage::UpdateElements(_) => {}
-        UiMessage::Input(element_id, change) => {
+        UiMessage::Input(element_id, _, change) => {
             
             //let mut element = element.expect("Recieved update for non existent element");
 
@@ -148,9 +178,19 @@ async fn ui_handler(client: &mut SpiderClient, state: &mut State, msg: UiMessage
                     state.page_num += 1;
                     element.set_text(format!("{}", state.page_num));
                 },
-                "button2" => {
+                "increase_5" => {
+                    let mut element = state.test_page.get_by_id_mut("data").unwrap();
+                    state.page_num += 5;
+                    element.set_text(format!("{}", state.page_num));
+                },
+                "decrease" => {
                     let mut element = state.test_page.get_by_id_mut("data").unwrap();
                     state.page_num = state.page_num.saturating_sub(1);
+                    element.set_text(format!("{}", state.page_num));
+                },
+                "decrease_5" => {
+                    let mut element = state.test_page.get_by_id_mut("data").unwrap();
+                    state.page_num = state.page_num.saturating_sub(5);
                     element.set_text(format!("{}", state.page_num));
                 },
                 "button3" => {
@@ -168,13 +208,11 @@ async fn ui_handler(client: &mut SpiderClient, state: &mut State, msg: UiMessage
                 _ => {return}
             }
 
-            
-            // drop(element);
-
             // send updates
             let changes = state.test_page.get_changes();
             let msg = Message::Ui(UiMessage::UpdateElements(changes));
             client.send(msg).await;
         }
+        UiMessage::Dataset(_, _) => todo!(),
     }
 }
