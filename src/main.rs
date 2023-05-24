@@ -29,6 +29,7 @@ impl State {
         root.append_child({
             let mut child = UiElement::new(UiElementKind::Columns);
             child.append_child(UiElement::from_string("Increase:"));
+            child.append_child(UiElement::new(UiElementKind::Spacer));
             child.append_child({
                 let mut element = UiElement::from_string("Increase");
                 element.set_kind(UiElementKind::Button);
@@ -49,6 +50,8 @@ impl State {
         
         root.append_child({
             let mut child = UiElement::new(UiElementKind::Columns);
+            child.append_child(UiElement::from_string("Decrease:"));
+            child.append_child(UiElement::new(UiElementKind::Spacer));
             child.append_child({
                 let mut element = UiElement::from_string("Decrease");
                 element.set_kind(UiElementKind::Button);
