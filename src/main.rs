@@ -153,10 +153,9 @@ async fn main() -> Result<(), io::Error> {
 
 async fn msg_handler(client: &mut SpiderClient, state: &mut State, msg: Message) {
     match msg {
-        Message::Peripheral(_) => {}
         Message::Ui(msg) => ui_handler(client, state, msg).await,
         Message::Dataset(_) => {}
-        Message::Event(_) => {}
+        Message::Router(_) => {}
     }
 }
 
