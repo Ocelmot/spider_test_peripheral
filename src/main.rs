@@ -1,7 +1,7 @@
 use std::{io, path::PathBuf};
 
 use spider_client::{
-    message::{Message, UiElement, UiElementKind, UiMessage, UiPageManager, UiPath, UiInput},
+    message::{Message, UiElement, UiElementKind, UiMessage, UiPageManager, UiPath, UiInput, RouterMessage},
     AddressStrategy, Relation, Role, SpiderClient, SpiderId2048,
 };
 
@@ -13,6 +13,10 @@ struct State {
 
 impl State {
     async fn init(client: &mut SpiderClient) -> Self {
+        let msg = RouterMessage::SetIdentityProperty("name".into(), "Test Peripheral".into());
+        let msg = Message::Router(msg);
+        client.send(msg).await;
+
         let id = client.self_relation().id;
         let mut test_page = UiPageManager::new(id, "Test Page...");
         let mut root = test_page
