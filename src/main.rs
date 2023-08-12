@@ -1,8 +1,10 @@
-use std::{io, path::PathBuf};
+use std::path::PathBuf;
 
 use spider_client::{
-    message::{Message, UiElement, UiElementKind, UiMessage, UiPageManager, UiPath, UiInput, RouterMessage},
-    AddressStrategy, Relation, Role, SpiderClient, SpiderId2048,
+    message::{
+        Message, RouterMessage, UiElement, UiElementKind, UiInput, UiMessage, UiPageManager, UiPath,
+    },
+    ClientChannel, ClientResponse, SpiderClientBuilder,
 };
 
 struct State {
@@ -12,12 +14,12 @@ struct State {
 }
 
 impl State {
-    async fn init(client: &mut SpiderClient) -> Self {
+    async fn init(client: &mut ClientChannel) -> Self {
         let msg = RouterMessage::SetIdentityProperty("name".into(), "Test Peripheral".into());
         let msg = Message::Router(msg);
         client.send(msg).await;
 
-        let id = client.self_relation().id;
+        let id = client.id().clone();
         let mut test_page = UiPageManager::new(id, "Test Page...");
         let mut root = test_page
             .get_element_mut(&UiPath::root())
@@ -51,7 +53,6 @@ impl State {
             child
         });
 
-        
         root.append_child({
             let mut child = UiElement::new(UiElementKind::Columns);
             child.append_child(UiElement::from_string("Decrease:"));
@@ -80,10 +81,7 @@ impl State {
             element.set_id("button3");
             element
         });
-        
-        
-        
-        
+
         root.append_child({
             let mut element = UiElement::from_string("Output:");
             element.set_id("Output");
@@ -112,58 +110,41 @@ impl State {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), io::Error> {
-    println!("Hello, world!");
-
+async fn main() {
     let client_path = PathBuf::from("client_state.dat");
-    let mut client = if client_path.exists() {
-        SpiderClient::from_file(&client_path)
-    } else {
-        let mut client = SpiderClient::new();
-        client.set_state_path(&client_path);
-        client.add_strat(AddressStrategy::Addr(String::from("localhost:1930")));
-        client.save();
-        client
-    };
 
-    if !client.has_host_relation() {
-        let path = PathBuf::from("spider_keyfile.json");
+    let mut builder = SpiderClientBuilder::load_or_set(&client_path, |builder| {
+        builder.enable_fixed_addrs(true);
+        builder.set_fixed_addrs(vec!["localhost:1930".into()]);
+    });
 
-        let data = match std::fs::read_to_string(&path) {
-            Ok(str) => str,
-            Err(_) => String::from("[]"),
-        };
-        let id: SpiderId2048 = serde_json::from_str(&data).expect("Failed to deserialize spiderid");
-        let host = Relation {
-            id,
-            role: Role::Peer,
-        };
-        client.set_host_relation(host);
-        client.save();
-    }
+    builder.try_use_keyfile("spider_keyfile.json").await;
 
-    client.connect().await;
-    let mut state = State::init(&mut client).await;
+    let mut client_channel = builder.start(true);
+    let mut state = State::init(&mut client_channel).await;
 
     loop {
-        match client.recv().await {
-            Some(msg) => msg_handler(&mut client, &mut state, msg).await,
+        match client_channel.recv().await {
+            Some(ClientResponse::Message(msg)) => {
+                msg_handler(&mut client_channel, &mut state, msg).await;
+            }
+            Some(ClientResponse::Denied(_)) => break,
             None => break, //  done!
+            _ => {}
         }
     }
-
-    Ok(())
 }
 
-async fn msg_handler(client: &mut SpiderClient, state: &mut State, msg: Message) {
+async fn msg_handler(client: &mut ClientChannel, state: &mut State, msg: Message) {
     match msg {
         Message::Ui(msg) => ui_handler(client, state, msg).await,
         Message::Dataset(_) => {}
         Message::Router(_) => {}
+        Message::Error(_) => {}
     }
 }
 
-async fn ui_handler(client: &mut SpiderClient, state: &mut State, msg: UiMessage) {
+async fn ui_handler(client: &mut ClientChannel, state: &mut State, msg: UiMessage) {
     match msg {
         UiMessage::Subscribe => {}
         UiMessage::Pages(_) => {}
@@ -175,43 +156,40 @@ async fn ui_handler(client: &mut SpiderClient, state: &mut State, msg: UiMessage
         UiMessage::ClearPage => {}
         UiMessage::UpdateElements(_) => {}
         UiMessage::Input(element_id, _, change) => {
-            
-            //let mut element = element.expect("Recieved update for non existent element");
-
-            match element_id.as_str(){
+            match element_id.as_str() {
                 "button" => {
                     let mut element = state.test_page.get_by_id_mut("data").unwrap();
                     state.page_num += 1;
                     element.set_text(format!("{}", state.page_num));
-                },
+                }
                 "increase_5" => {
                     let mut element = state.test_page.get_by_id_mut("data").unwrap();
                     state.page_num += 5;
                     element.set_text(format!("{}", state.page_num));
-                },
+                }
                 "decrease" => {
                     let mut element = state.test_page.get_by_id_mut("data").unwrap();
                     state.page_num = state.page_num.saturating_sub(1);
                     element.set_text(format!("{}", state.page_num));
-                },
+                }
                 "decrease_5" => {
                     let mut element = state.test_page.get_by_id_mut("data").unwrap();
                     state.page_num = state.page_num.saturating_sub(5);
                     element.set_text(format!("{}", state.page_num));
-                },
+                }
                 "button3" => {
                     let mut element = state.test_page.get_by_id_mut("data").unwrap();
                     state.page_num = 0;
                     element.set_text(format!("{}", state.page_num));
-                },
+                }
                 "TextInput" => {
-                    if let UiInput::Text(text) = change{
+                    if let UiInput::Text(text) = change {
                         let mut element = state.test_page.get_by_id_mut("Output").unwrap();
                         state.page_text = text;
                         element.set_text(format!("Output: {}", state.page_text));
                     }
-                },
-                _ => {return}
+                }
+                _ => return,
             }
 
             // send updates
@@ -219,6 +197,6 @@ async fn ui_handler(client: &mut SpiderClient, state: &mut State, msg: UiMessage
             let msg = Message::Ui(UiMessage::UpdateElements(changes));
             client.send(msg).await;
         }
-        UiMessage::Dataset(_, _) => todo!(),
+        UiMessage::Dataset(_, _) => {}
     }
 }
