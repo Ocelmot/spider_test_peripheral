@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use spider_client::{
-    message::{
+    link::message::{
         Message, RouterMessage, UiElement, UiElementKind, UiInput, UiMessage, UiPageManager, UiPath,
     },
     ClientChannel, ClientResponse, SpiderClientBuilder,
@@ -116,20 +116,23 @@ async fn main() {
     let mut builder = SpiderClientBuilder::load_or_set(&client_path, |builder| {
         builder.enable_fixed_addrs(true);
         builder.set_fixed_addrs(vec!["localhost:1930".into()]);
-    });
+    })
+    .await
+    .expect("Builder failed to load");
 
     builder.try_use_keyfile("spider_keyfile.json").await;
 
-    let mut client_channel = builder.start(true);
+    let mut client_channel = builder.start(true).await.expect("Failed to start builder");
     let mut state = State::init(&mut client_channel).await;
 
+    println!("Looping");
     loop {
         match client_channel.recv().await {
-            Some(ClientResponse::Message(msg)) => {
+            Ok(ClientResponse::Message(msg, _)) => {
                 msg_handler(&mut client_channel, &mut state, msg).await;
             }
-            Some(ClientResponse::Denied(_)) => break,
-            None => break, //  done!
+            // Ok(ClientResponse::Denied(_, _)) => break,
+            Err(err) => eprintln!("Encountered err {:?}", err), //  done!
             _ => {}
         }
     }
@@ -141,6 +144,7 @@ async fn msg_handler(client: &mut ClientChannel, state: &mut State, msg: Message
         Message::Dataset(_) => {}
         Message::Router(_) => {}
         Message::Error(_) => {}
+        Message::Group(_) => {}
     }
 }
 
