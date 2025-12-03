@@ -6,6 +6,11 @@ use spider_client::{
     },
     ClientChannel, ClientResponse, SpiderClientBuilder,
 };
+use tracing_subscriber::{
+    filter::{filter_fn, LevelFilter},
+    layer::SubscriberExt,
+    util::SubscriberInitExt,
+};
 
 struct State {
     test_page: UiPageManager,
@@ -111,6 +116,28 @@ impl State {
 
 #[tokio::main]
 async fn main() {
+    let filter = filter_fn(|metadata| {
+        if metadata.target().contains("spider") {
+            return true;
+        }
+        // if metadata.target().contains("veilid") && metadata.level() <= &Level::INFO {
+        //     return true
+        // }
+        false
+    });
+
+    // let log_path = config.log_path.clone();
+    // let file_appender = RollingFileAppender::new(Rotation::NEVER, "", log_path);
+    // let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+    let (non_blocking, _guard) = tracing_appender::non_blocking(std::io::stdout());
+    let subscriber = tracing_subscriber::fmt()
+        .compact()
+        // .with_ansi(false)
+        .with_writer(non_blocking)
+        .with_max_level(LevelFilter::TRACE)
+        .finish();
+    subscriber.with(filter).init();
+
     let client_path = PathBuf::from("client_state.dat");
 
     let mut builder = SpiderClientBuilder::load_or_set(&client_path, |builder| {
@@ -119,6 +146,8 @@ async fn main() {
     })
     .await
     .expect("Builder failed to load");
+
+    builder.enable_beacon(false);
 
     builder.try_use_keyfile("spider_keyfile.json").await;
 

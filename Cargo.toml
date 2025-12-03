@@ -9,3 +9,6 @@ edition = "2021"
 spider_client = { git = "https://github.com/Ocelmot/spider" }
 tokio = { version = "1", features = ["full", "tracing"] }
 serde_json = "1.0.73"
+# tracing = "0.1"
+tracing-appender = "0.2.2"
+tracing-subscriber = "0.3.14"
